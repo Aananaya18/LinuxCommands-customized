@@ -1,0 +1,204 @@
+#!/bin/bash
+
+# Define the version
+VERSION="v0.1.0"
+
+# Function to display usage information
+display_usage() {
+    echo "Usage: internsctl [OPTIONS] COMMAND [ARGUMENTS]"
+    echo "Options:"
+    echo "  --help      Display help information"
+    echo "  --version   Display version information"
+    echo "Commands:"
+    echo "  cpu getinfo          Get CPU information"
+    echo "  memory getinfo       Get memory information"
+    echo "  user create <username>  Create a new user"
+    echo "  user list            List all regular users"
+    echo "  user list --sudo-only  List users with sudo permissions"
+    # Add other commands as needed
+    echo ""
+    echo "Examples:"
+    echo "  internsctl cpu getinfo             # Get CPU information"
+    echo "  internsctl memory getinfo          # Get memory information"
+    echo "  internsctl user create john        # Create a new user 'john'"
+    echo "  internsctl user list               # List all regular users"
+    echo "  internsctl user list --sudo-only   # List users with sudo permissions"
+}
+
+# Function to display version information
+display_version() {
+    echo "internsctl $VERSION"
+}
+
+# Function to get CPU information
+get_cpu_info() {
+    lscpu
+}
+
+# Function to get memory information
+get_memory_info() {
+    free
+}
+
+# Function to create a new user
+create_user() {
+    if [ -z "$1" ]; then
+        echo "Error: Username not provided."
+        exit 1
+    fi
+
+    sudo useradd -m "$1"
+    echo "User '$1' created successfully."
+}
+
+# Function to list all regular users
+list_users() {
+    getent passwd | awk -F: '$3 >= 1000 && $3 < 65534 {print $1}'
+}
+
+# Function to list users with sudo permissions
+list_sudo_users() {
+    getent passwd | while IFS=: read -r username _ _ _ _ _; do
+        sudo -lU "$username" | grep -q "(ALL)" && echo "$username"
+    done
+}
+
+# Parse command line options
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --help)
+            display_usage
+            exit 0
+            ;;
+        --version)
+            display_version
+            exit 0
+            ;;
+        cpu)
+            shift
+            case $1 in
+                getinfo)
+                    get_cpu_info
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown command: internsctl cpu $1"
+                    display_usage
+                    exit 1
+                    ;;
+            esac
+            ;;
+        memory)
+            shift
+            case $1 in
+                getinfo)
+                    get_memory_info
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown command: internsctl memory $1"
+                    display_usage
+                    exit 1
+                    ;;
+            esac
+            ;;
+        user)
+            shift
+            case $1 in
+                create)
+                    shift
+                    create_user "$1"
+                    exit 0
+                    ;;
+                list)
+                    shift
+                    if [ "$1" == "--sudo-only" ]; then
+                        list_sudo_users
+                    else
+                        list_users
+                    fi
+                    exit 0
+                    ;;
+                *)
+                    echo "Unknown command: internsctl user $1"
+                    display_usage
+                    exit 1
+                    ;;
+            esac
+            ;;
+        *)
+            echo "Unknown option: $1"
+            display_usage
+            exit 1
+            ;;
+    esac
+    shift
+done
+# Function to get file information
+get_file_info() {
+    local file=""
+    local options=()
+
+    # Parse command line options
+    while [[ "$#" -gt 0 ]]; do
+        case $1 in
+            --size | -s | --permissions | -p | --owner | -o | --last-modified | -m)
+                options+=("$1")
+                shift
+                ;;
+            *)
+                file="$1"
+                shift
+                ;;
+        esac
+    done
+
+    # Check if file name is provided
+    if [ -z "$file" ]; then
+        echo "Error: File name not provided."
+        display_usage
+        exit 1
+    fi
+
+    # Check if file exists
+    if [ ! -e "$file" ]; then
+        echo "Error: File '$file' does not exist."
+        exit 1
+    fi
+
+    # Get file size, permissions, owner, and last modified time
+    local size=$(stat -c %s "$file")
+    local permissions=$(stat -c %A "$file")
+    local owner=$(stat -c %U "$file")
+    local last_modified=$(stat -c %y "$file")
+
+    # Print information based on options
+    for option in "${options[@]}"; do
+        case $option in
+            --size | -s)
+                echo "$size"
+                ;;
+            --permissions | -p)
+                echo "Access: $permissions"
+                ;;
+            --owner | -o)
+                echo "Owner: $owner"
+                ;;
+            --last-modified | -m)
+                echo "Modify: $last_modified"
+                ;;
+        esac
+    done
+
+    # Print default output if no options specified
+    if [ "${#options[@]}" -eq 0 ]; then
+        echo "File: $file"
+        echo "Access: $permissions"
+        echo "Size(B): $size"
+        echo "Owner: $owner"
+        echo "Modify: $last_modified"
+    fi
+}
+# Display usage if no arguments are provided
+display_usage
+exit 1
